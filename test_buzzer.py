@@ -74,10 +74,34 @@ def playSong(songnotes, songbeats, tempo):
     tone1.ChangeDutyCycle(0)
 
 
-def buzzPwm(duration, freq):
+def play_tune(duration, freq):
     tone1.ChangeDutyCycle(50)
     tone1.ChangeFrequency(freq)
     time.sleep(float(duration) / 1000)
+    tone1.ChangeDutyCycle(0)
+
+
+def play_change(duration, low_freq, high_freq, start_pause=0, stop_pause=0, inverse=False):
+    """ duration in ms
+    """
+    tone1.ChangeDutyCycle(50)
+    num_steps = 20
+    step_freq = (high_freq - low_freq) / num_steps
+    step_duration = duration / (num_steps * 1000)
+
+    start_pause = step_duration if start_pause == 0.0 else start_pause
+    stop_pause = step_duration if stop_pause == 0.0 else stop_pause
+
+    for i in range(num_steps):
+        f = low_freq + i * step_freq if not inverse else high_freq - i * step_freq
+        tone1.ChangeFrequency(f)
+        if(i == 0):
+            time.sleep(start_pause)
+        elif(i == num_steps-1):
+            time.sleep(stop_pause)
+        else:
+            time.sleep(step_duration)
+    
     tone1.ChangeDutyCycle(0)
 
 
@@ -86,13 +110,30 @@ def main():
     #    buzzPwm(20, i)
     pause = 0.05
 
-    buzzPwm(100, 10000)
+    play_change(300, 3000, 14000, inverse=False)
+    play_change(300, 3000, 14000, inverse=False)
+    play_change(300, 3000, 14000, inverse=False)
+    time.sleep(1)
+    play_change(300, 3000, 14000, inverse=True)
+    play_change(300, 3000, 14000, inverse=True)
+    play_change(300, 3000, 14000, inverse=True)
+    time.sleep(1)
+    play_change(300, 3000, 14000, inverse=True)
+    play_change(300, 3000, 14000, inverse=False)
+    play_change(300, 3000, 14000, inverse=True)
+    play_change(300, 3000, 14000, inverse=False)
+    time.sleep(1)
+    #play_change(100, 4000, 15000, inverse=True, stop_pause=0.0)
+    #play_change(100, 4000, 15000, stop_pause=0.0)
+    #time.sleep(0.1)
+    
+    play_tune(100, 14000)
     time.sleep(pause)
-    buzzPwm(100, 10000)
+    play_tune(100, 14000)
     time.sleep(pause)
-    buzzPwm(100, 5000)
+    play_tune(100, 8000)
     time.sleep(pause)
-    buzzPwm(100, 10000)
+    play_tune(100, 14000)
     time.sleep(2)
     # time.sleep(pause)
     # buzzPwm(500, 400)
