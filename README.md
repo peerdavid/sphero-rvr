@@ -21,6 +21,13 @@ Execute the following to install all dependencies and create a virtual environme
 ## Hardware
 For the hardware we need to connect the raspberry pi 4b to the sphero rvr, install the raspberry camera, install ultrasonic sensors (security layer) and speakers:
 
+Ultrasonic: The raspberry has 3.3V, the sensor 5V therefore we want 3,3V for the echo:
+R_2 = 3.9k and R_1 = 2.2k
+and therefore 
+as V_out / V_in = R_2 / (R_1 + R_2)
+
+such that V_in ~ 3.2V
+
 ### Sphero RVR connection
 
 ### Ultrasonic sensors
@@ -42,3 +49,4 @@ Every example can access functionality of the robot only through the security la
 # References
 [1] Ultrasonic RVR example - https://sdk.sphero.com/docs/samples_content/raspberry_pi/python/ultrasonic_rvr_sample/ <br />
 [2] Install Sphero RVR SDK - https://sdk.sphero.com/docs/getting_started/raspberry_pi/raspberry_pi_setup/ <br />
+[3] Raspberry GPIO pins - https://www.raspberrypi.org/documentation/usage/gpio/ <br/>

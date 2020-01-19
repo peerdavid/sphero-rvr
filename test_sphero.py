@@ -66,7 +66,7 @@ async def velocity_handler(velocity_data):
 #
 # M A I N
 #
-async def main(speed=60, distance=2.5):
+async def main(speed=60, distance=2.0):
     """ This program has RVR drive around in different directions using the function drive_with_heading.
 
     speed: Drive distance with given speed
@@ -87,18 +87,18 @@ async def main(speed=60, distance=2.5):
         service=RvrStreamingServices.locator,
         handler=locator_handler,
     )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.quaternion,
-    #     handler=quaternion_handler,
-    # )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.gyroscope,
-    #     handler=gyroscope_handler,
-    # )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.velocity,
-    #     handler=velocity_handler,
-    # )
+    await rvr.sensor_control.add_sensor_data_handler(
+        service=RvrStreamingServices.quaternion,
+        handler=quaternion_handler,
+    )
+    await rvr.sensor_control.add_sensor_data_handler(
+        service=RvrStreamingServices.gyroscope,
+        handler=gyroscope_handler,
+    )
+    await rvr.sensor_control.add_sensor_data_handler(
+        service=RvrStreamingServices.velocity,
+        handler=velocity_handler,
+    )
     await rvr.sensor_control.start(interval=250)
 
 
@@ -118,7 +118,7 @@ async def main(speed=60, distance=2.5):
         )
 
         await asyncio.sleep(0.25)
-    
+
     
     # We don't use roll_stop as this function is currently buggy.
     await rvr.drive_with_heading(
