@@ -50,3 +50,4 @@ Every example can access functionality of the robot only through the security la
 [1] Ultrasonic RVR example - https://sdk.sphero.com/docs/samples_content/raspberry_pi/python/ultrasonic_rvr_sample/ <br />
 [2] Install Sphero RVR SDK - https://sdk.sphero.com/docs/getting_started/raspberry_pi/raspberry_pi_setup/ <br />
 [3] Raspberry GPIO pins - https://www.raspberrypi.org/documentation/usage/gpio/ <br/>
+[4] Tool to create laser-cut box - https://www.makercase.com/#/kerfbox <br />
