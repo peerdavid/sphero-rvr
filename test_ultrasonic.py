@@ -11,7 +11,7 @@ import asyncio
 
 
 #
-# GPIO Setup
+# Ultrasonic setup
 #
 front_trigger_pin = 4
 front_echo_pin = 27
@@ -33,8 +33,9 @@ GPIO.setup(right_echo_pin, GPIO.IN)
 GPIO.setup(left_trigger_pin, GPIO.OUT)
 GPIO.setup(left_echo_pin, GPIO.IN)
 
-
-
+#
+# Helper
+#
 def measure_ultrasonic_distance(trigger, echo):
     """ Measures the distance in cm for given trigger and echo GPIO pins.
 

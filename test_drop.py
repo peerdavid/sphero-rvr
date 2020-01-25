@@ -17,6 +17,7 @@ from sphero_sdk import Colors
 from sphero_sdk import RvrLedGroups
 
 import RPi.GPIO as GPIO
+GPIO.setwarnings(False)
 
 
 #
@@ -33,6 +34,8 @@ RIGHT_ECHO = 23
 LEFT_TRIGGER = 17
 LEFT_ECHO = 22
 
+SOUND = 12
+
 
 #
 # Init sphero rvr async sdk
@@ -48,40 +51,8 @@ location = {"x": 0.0, "y": 0.0}
 
 
 #
-# Sensor handlers
+# FUNCTIONS
 #
-async def locator_handler(locator_data):
-    """ Handle location data (x,y) position of robot.
-        See also https://community.sphero.com/t/programming-questions/829/4
-    """
-    location["x"] = locator_data['Locator']['X']
-    location["y"] = locator_data['Locator']['Y']
-    print("Position: x: %.2f [m] | y: %.2f [m]" % (location["x"], location["y"]))
-
-
-async def quaternion_handler(quaternion_data):
-    w = quaternion_data['Quaternion']['W']
-    x = quaternion_data['Quaternion']['X']
-    y = quaternion_data['Quaternion']['Y']
-    z = quaternion_data['Quaternion']['Z']
-    print("Quaternion: w %.2f | x %.2f | y %.2f | z %.2f" % (w, x, y, z))
-    
-
-
-async def gyroscope_handler(gyroscope_data):
-    x = gyroscope_data['Gyroscope']['X'] * 2 * math.pi / 360
-    y = gyroscope_data['Gyroscope']['Y'] * 2 * math.pi / 360
-    z = gyroscope_data['Gyroscope']['Z'] * 2 * math.pi / 360
-    print("Gyroscope: x %.2f | y %.2f | z %.2f" % (x, y, z))
-    
-
-
-async def velocity_handler(velocity_data):
-    x = velocity_data['Velocity']['X'] * 5.0 / MAX_SENSOR_VALUE
-    y = velocity_data['Velocity']['Y'] * 5.0 / MAX_SENSOR_VALUE
-    print("Velocity: x %.2f | y %.2f" % (x, y))
-
-
 def measure_ultrasonic_distance(trigger, echo):
     """ Measures the distance in cm for given trigger and echo GPIO pins.
 
@@ -107,6 +78,41 @@ def measure_ultrasonic_distance(trigger, echo):
     return distance
 
 
+async def led_red():
+    await rvr.set_all_leds(
+        led_group=RvrLedGroups.all_lights.value,
+        led_brightness_values=[color for x in range(10) for color in [255, 0, 0]]
+    )
+
+async def led_green():
+    await rvr.set_all_leds(
+        led_group=RvrLedGroups.all_lights.value,
+        led_brightness_values=[color for x in range(10) for color in [0, 255, 0]]
+    )
+
+async def led_yellow():
+    await rvr.set_all_leds(
+        led_group=RvrLedGroups.all_lights.value,
+        led_brightness_values=[color for x in range(10) for color in [255, 255, 0]]
+    )
+
+async def led_orange():
+    await rvr.set_all_leds(
+        led_group=RvrLedGroups.all_lights.value,
+        led_brightness_values=[color for x in range(10) for color in [255, 127, 0]]
+    )
+
+
+def play_tune(tone, duration, freq):
+    """ ToDo This must be done async...
+    """
+    tone.ChangeDutyCycle(50)
+    tone.ChangeFrequency(freq)
+    time.sleep(float(duration) / 1000)
+    tone.ChangeDutyCycle(0)
+    time.sleep(0.05)
+
+
 #
 # M A I N
 #
@@ -128,72 +134,35 @@ async def main(speed=50):
     GPIO.setup(LEFT_TRIGGER, GPIO.OUT)
     GPIO.setup(LEFT_ECHO, GPIO.IN)
 
+    # Init sound
+    GPIO.setup(SOUND, GPIO.OUT)
+    GPIO.output(SOUND, 0)
+    tone = GPIO.PWM(SOUND, 100)
+    tone.start(0)
+
+    # Play hellp
+    play_tune(tone, 100, 14000)
+    play_tune(tone, 100, 14000)
+    play_tune(tone, 100, 8000)
+    play_tune(tone, 100, 14000)
+
     # Init RVR
     await rvr.wake()
     await asyncio.sleep(1)
 
     print("------------------------------")
-    print("RVR data")
-    print("------------------------------")
     print("Battery [%%]: %d" % (await rvr.get_battery_percentage())["percentage"])
     await asyncio.sleep(1)
-    print("MAC-Address: %s" % (await rvr.get_mac_address())["macAddress"])
     print("------------------------------")
-    await asyncio.sleep(1)
-
-    # All leds off
-    await rvr.set_all_leds(
-        led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for _ in range(10) for color in Colors.off.value]
-    )
-    await asyncio.sleep(1)
-
-    # Initialize sensors 
-    await rvr.sensor_control.add_sensor_data_handler(
-        service=RvrStreamingServices.locator,
-        handler=locator_handler,
-    )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.quaternion,
-    #     handler=quaternion_handler,
-    # )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.gyroscope,
-    #     handler=gyroscope_handler,
-    # )
-    # await rvr.sensor_control.add_sensor_data_handler(
-    #     service=RvrStreamingServices.velocity,
-    #     handler=velocity_handler,
-    # )
-    await rvr.sensor_control.start(interval=100)
-    await asyncio.sleep(1)
-
-    # Reset coordinates
-    await rvr.reset_locator_x_and_y()
-    await asyncio.sleep(1)
 
     # Start driving
     await rvr.reset_yaw()
     await asyncio.sleep(1)
-
-    await rvr.set_all_leds(
-        led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for x in range(10) for color in [0, 255, 0]]
-    )
-    await asyncio.sleep(0.5)
-    await rvr.set_all_leds(
-        led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for _ in range(10) for color in Colors.off.value]
-    )
-    await asyncio.sleep(0.5)
-    await rvr.set_all_leds(
-        led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for x in range(10) for color in [0, 255, 0]]
-    )
-
     ########################################
     # Driving loop
     ########################################
+    num_oks = 0
+    heading = 0
     while(True):
 
         front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
@@ -202,40 +171,67 @@ async def main(speed=50):
 
         if(front_d < 25):
             print("Avoiding front crash with %.2f cm" % front_d)
-            break
+            await rvr.raw_motors(0,0,0,0)
+            await led_red()
+            await asyncio.sleep(1)
+            found_problem = True
+            num_oks = 0
+            continue
 
         if(right_d > 12):
             print("Avoiding right drop with %.2f cm" % right_d)
-            break
+            await rvr.raw_motors(0,0,0,0)
+            await led_red()
+            await asyncio.sleep(1)
+            found_problem = True
+            num_oks = 0
+            continue
 
         if(left_d > 12):
             print("Avoiding left drop with %.2f cm" % left_d)
-            break
+            await rvr.raw_motors(0,0,0,0)
+            await led_red()
+            await asyncio.sleep(1)
+            found_problem = True
+            num_oks = 0
+            continue
+        
+        # Only if multiple measures where ok we start again
+        num_oks += 1
+        if num_oks < 3:
+            await led_orange()
+            await asyncio.sleep(1)
+            continue  
+        elif num_oks == 3:
+            play_tune(tone, 100, 8000)
+            play_tune(tone, 100, 8000)
+            play_tune(tone, 100, 14000)
+            heading = 0
+            await rvr.reset_yaw()
+            await asyncio.sleep(1)
 
+        if num_oks % 10 == 0 and num_oks > 0:
+            heading = 0
+            await rvr.reset_yaw()
+
+        # Warning close
         if(front_d < 50):
-            await rvr.set_all_leds(
-                led_group=RvrLedGroups.all_lights.value,
-                led_brightness_values=[color for x in range(10) for color in [255, 255, 0]]
-            )
+            await led_orange()
+            heading = 90
+        else:
+            await led_green()
         
         # Everything is fine, so letr drive straight ahead
         await rvr.drive_with_heading(
             speed=speed,
-            heading=0,
+            heading=heading,
             flags=DriveFlagsBitmask.none.value
         )
 
-        await asyncio.sleep(0.10)
+        await asyncio.sleep(0.1)
     ########################################
     
     # Stop
-    await rvr.raw_motors(0,0,0,0)
-    await rvr.set_all_leds(
-        led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for x in range(10) for color in [255, 0, 0]]
-    )
-    await asyncio.sleep(1)
-
     await rvr.close()
     await asyncio.sleep(1)
 
