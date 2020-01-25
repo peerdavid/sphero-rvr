@@ -66,7 +66,7 @@ async def velocity_handler(velocity_data):
 #
 # M A I N
 #
-async def main(speed=60, distance=2.0):
+async def main(speed=70, distance=1.5):
     """ This program has RVR drive around in different directions using the function drive_with_heading.
 
     speed: Drive distance with given speed

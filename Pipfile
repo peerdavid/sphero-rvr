@@ -10,6 +10,7 @@ pylint = "*"
 numpy = "*"
 sphero-sdk = {path = "./../sphero-sdk-raspberrypi-python"}
 rpi-gpio = "*"
+picamera = "*"
 
 [requires]
 python_version = "3.7"

@@ -17,6 +17,7 @@ Execute the following to install all dependencies and create a virtual environme
 6. pipenv --python /usr/bin/python3.7
 7. pipenv shell
 
+Note: To install packages run pipenv install PACKAGE
 
 ## Hardware
 For the hardware we need to connect the raspberry pi 4b to the sphero rvr, install the raspberry camera, install ultrasonic sensors (security layer) and speakers:
