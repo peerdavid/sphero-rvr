@@ -34,6 +34,7 @@ GPIO.setup(left_trigger_pin, GPIO.OUT)
 GPIO.setup(left_echo_pin, GPIO.IN)
 
 
+
 def measure_ultrasonic_distance(trigger, echo):
     """ Measures the distance in cm for given trigger and echo GPIO pins.
 
