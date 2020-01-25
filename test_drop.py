@@ -230,12 +230,11 @@ async def main(speed=50):
     
     # Stop
     await rvr.raw_motors(0,0,0,0)
-    await asyncio.sleep(1)
-
     await rvr.set_all_leds(
         led_group=RvrLedGroups.all_lights.value,
         led_brightness_values=[color for x in range(10) for color in [255, 0, 0]]
     )
+    await asyncio.sleep(1)
 
     await rvr.close()
     await asyncio.sleep(1)
