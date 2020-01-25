@@ -7,6 +7,8 @@ from sphero_sdk import SpheroRvrAsync
 from sphero_sdk import SerialAsyncDal
 from sphero_sdk import DriveFlagsBitmask
 from sphero_sdk import RvrStreamingServices
+from sphero_sdk import Colors
+from sphero_sdk import RvrLedGroups
 
 
 #
@@ -66,7 +68,7 @@ async def velocity_handler(velocity_data):
 #
 # M A I N
 #
-async def main(speed=70, distance=1.5):
+async def main(speed=60, distance=1.0):
     """ This program has RVR drive around in different directions using the function drive_with_heading.
 
     speed: Drive distance with given speed
@@ -81,57 +83,63 @@ async def main(speed=70, distance=1.5):
     print("Battery [%%]: %d" % (await rvr.get_battery_percentage())["percentage"])
     print("MAC-Address: %s" % (await rvr.get_mac_address())["macAddress"])
     print("------------------------------")
+    await asyncio.sleep(2)
+
+    # All leds off
+    await rvr.set_all_leds(
+        led_group=RvrLedGroups.all_lights.value,
+        led_brightness_values=[color for _ in range(10) for color in Colors.off.value]
+    )
+    await asyncio.sleep(1)
+
 
     # Initialize sensors 
     await rvr.sensor_control.add_sensor_data_handler(
         service=RvrStreamingServices.locator,
         handler=locator_handler,
     )
-    await rvr.sensor_control.add_sensor_data_handler(
-        service=RvrStreamingServices.quaternion,
-        handler=quaternion_handler,
-    )
-    await rvr.sensor_control.add_sensor_data_handler(
-        service=RvrStreamingServices.gyroscope,
-        handler=gyroscope_handler,
-    )
-    await rvr.sensor_control.add_sensor_data_handler(
-        service=RvrStreamingServices.velocity,
-        handler=velocity_handler,
-    )
-    await rvr.sensor_control.start(interval=250)
-
+    # await rvr.sensor_control.add_sensor_data_handler(
+    #     service=RvrStreamingServices.quaternion,
+    #     handler=quaternion_handler,
+    # )
+    # await rvr.sensor_control.add_sensor_data_handler(
+    #     service=RvrStreamingServices.gyroscope,
+    #     handler=gyroscope_handler,
+    # )
+    # await rvr.sensor_control.add_sensor_data_handler(
+    #     service=RvrStreamingServices.velocity,
+    #     handler=velocity_handler,
+    # )
+    await rvr.sensor_control.start(interval=100)
+    await asyncio.sleep(1)
 
     # Reset coordinates
     await rvr.reset_locator_x_and_y()
-    await asyncio.sleep(2)
+    await asyncio.sleep(1)
 
     # Start driving
     await rvr.reset_yaw()
+    await asyncio.sleep(1)
 
-    # Delay to allow RVR to drive
+    ########################################
+    # Driving loop
+    ########################################
     while(location["y"] < distance):
         await rvr.drive_with_heading(
-            speed=speed,    # Valid speed values are 0-255
-            heading=0,      # Valid heading values are 0-359
+            speed=speed,
+            heading=0,
             flags=DriveFlagsBitmask.none.value
         )
 
         await asyncio.sleep(0.25)
-
+    ########################################
     
-    # We don't use roll_stop as this function is currently buggy.
-    await rvr.drive_with_heading(
-        speed=0,            # Valid speed values are 0-255
-        heading=180,        # Valid heading values are 0-359
-        flags=DriveFlagsBitmask.none.value
-    )
-
-    await asyncio.sleep(2)
-
-    # Delay to allow RVR to drive
+    # Stop
+    await rvr.raw_motors(0,0,0,0)
+    await asyncio.sleep(1)
 
     await rvr.close()
+    await asyncio.sleep(1)
 
 
 if __name__ == '__main__':
