@@ -20,11 +20,37 @@ import RPi.GPIO as GPIO
 GPIO.setwarnings(False)
 
 
+
+class UltrasonicTimeout(Exception):
+    def __init__(self, arg):
+        self.strerror = arg
+        self.args = {arg}
+
+class UltrasonicDistanceTooLarge(Exception):
+    def __init__(self, arg):
+        self.strerror = arg
+        self.args = {arg}
+
+class UltrasonicDistanceTooSmall(Exception):
+    def __init__(self, arg):
+        self.strerror = arg
+        self.args = {arg}
+
+
+
 #
 # Constants
 #
+
+# Ultrasonic sensors
+# See also https://www.mouser.com/datasheet/2/813/HCSR04-1022824.pdf
+HCSR04_MIN_RANGE = 2
+HCSR04_MAX_RANGE = 4 * 100
+
+# Sphero sensor values
 MAX_SENSOR_VALUE = 2**31
 
+# Gpio pins
 FRONT_TRIGGER = 4
 FRONT_ECHO = 27
 
@@ -53,7 +79,7 @@ location = {"x": 0.0, "y": 0.0}
 #
 # FUNCTIONS
 #
-def measure_ultrasonic_distance(trigger, echo):
+def measure_ultrasonic_distance(trigger, echo, retry=10e5):
     """ Measures the distance in cm for given trigger and echo GPIO pins.
 
         Distance = Speed * Time / 2 (we measure from rvr to obstacle back to rvr)
@@ -65,16 +91,32 @@ def measure_ultrasonic_distance(trigger, echo):
 
     start_time = time.time()
     stop_time = time.time()
-
+    
+    fail_count = 0
     while GPIO.input(echo) == 0:
         start_time = time.time()
+        fail_count += 1
 
+        if fail_count >= retry:
+            raise UltrasonicTimeout("Failed to measure distance.")
+    
+    fail_count = 0
     while GPIO.input(echo) == 1:
         stop_time = time.time()
+        fail_count += 1
+
+        if fail_count >= retry:
+            raise UltrasonicTimeout("Failed to measure distance.")
 
     time_elapsed = stop_time - start_time
-
     distance = time_elapsed * 17150
+    
+    if distance > HCSR04_MAX_RANGE:
+        raise UltrasonicDistanceTooLarge("Measured distance is too large indicating a problem with the material (carpet, fabric etc.).")
+
+    if distance < HCSR04_MIN_RANGE:
+        raise UltrasonicDistanceTooSmall("Measured distance is too large indicating a problem with the material (carpet, fabric etc.).")
+
     return distance
 
 
@@ -112,6 +154,12 @@ def play_tune(tone, duration, freq):
     tone.ChangeDutyCycle(0)
     time.sleep(0.05)
 
+
+async def stop_robot():
+    await rvr.raw_motors(0,0,0,0)
+    await led_red()
+    await asyncio.sleep(1)
+    return True, 0
 
 #
 # M A I N
@@ -162,38 +210,58 @@ async def main(speed=50):
     # Driving loop
     ########################################
     num_oks = 0
-    heading = 0
     while(True):
 
-        front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
-        right_d = measure_ultrasonic_distance(RIGHT_TRIGGER, RIGHT_ECHO)
-        left_d = measure_ultrasonic_distance(LEFT_TRIGGER, LEFT_ECHO)
+        found_problem = False
 
-        if(front_d < 25):
+        # Measure ultrasonic sensors
+        try:
+            front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
+        except Exception as e:
+            print(e)
+            found_problem, num_oks = await stop_robot()            
+            continue
+        
+        right_ds = []
+        left_ds = []
+
+        for _ in range(3):
+            try:
+                await asyncio.sleep(0.005)
+                right_ds = measure_ultrasonic_distance(RIGHT_TRIGGER, RIGHT_ECHO)
+                await asyncio.sleep(0.005)
+                left_ds = measure_ultrasonic_distance(LEFT_TRIGGER, LEFT_ECHO)
+            except UltrasonicDistanceTooLarge as e:
+                print("Ultrasonic measures too large, assuming fabric material")
+                right_ds = [-1]
+                left_ds = [-1]
+                break
+            except Exception as e:
+                print(e)
+                found_problem, num_oks = await stop_robot()            
+                break
+        
+        if found_problem:
+            continue
+
+        # Remove one outlier
+        right_d = np.median(right_ds)
+        left_d = np.median(left_ds)
+
+        # Avoid obstacles and cliffs
+        if(front_d < 30):
             print("Avoiding front crash with %.2f cm" % front_d)
-            await rvr.raw_motors(0,0,0,0)
-            await led_red()
-            await asyncio.sleep(1)
-            found_problem = True
-            num_oks = 0
+            found_problem, num_oks = await stop_robot()    
             continue
 
-        if(right_d > 12):
+        if(right_d > 15):
             print("Avoiding right drop with %.2f cm" % right_d)
-            await rvr.raw_motors(0,0,0,0)
-            await led_red()
-            await asyncio.sleep(1)
-            found_problem = True
-            num_oks = 0
+            found_problem, num_oks = await stop_robot()    
             continue
 
-        if(left_d > 12):
+        if(left_d > 15):
             print("Avoiding left drop with %.2f cm" % left_d)
-            await rvr.raw_motors(0,0,0,0)
-            await led_red()
-            await asyncio.sleep(1)
-            found_problem = True
-            num_oks = 0
+            found_problem, num_oks = await stop_robot()    
             continue
         
         # Only if multiple measures where ok we start again
@@ -206,29 +274,17 @@ async def main(speed=50):
             play_tune(tone, 100, 8000)
             play_tune(tone, 100, 8000)
             play_tune(tone, 100, 14000)
-            heading = 0
+            await led_green()
+            await asyncio.sleep(1)
             await rvr.reset_yaw()
             await asyncio.sleep(1)
 
-        if num_oks % 10 == 0 and num_oks > 0:
-            heading = 0
-            await rvr.reset_yaw()
-
-        # Warning close
-        if(front_d < 50):
-            await led_orange()
-            heading = 90
-        else:
-            await led_green()
-        
         # Everything is fine, so letr drive straight ahead
         await rvr.drive_with_heading(
             speed=speed,
-            heading=heading,
+            heading=0,
             flags=DriveFlagsBitmask.none.value
         )
-
-        await asyncio.sleep(0.1)
     ########################################
     
     # Stop

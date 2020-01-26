@@ -9,6 +9,12 @@ import numpy as np
 import RPi.GPIO as GPIO
 import asyncio
 
+#
+# Constants
+#
+# See also https://www.mouser.com/datasheet/2/813/HCSR04-1022824.pdf
+HCSR04_MIN_RANGE = 2
+HCSR04_MAX_RANGE = 4 * 100
 
 #
 # Ultrasonic setup
@@ -33,10 +39,11 @@ GPIO.setup(right_echo_pin, GPIO.IN)
 GPIO.setup(left_trigger_pin, GPIO.OUT)
 GPIO.setup(left_echo_pin, GPIO.IN)
 
+
 #
 # Helper
 #
-def measure_ultrasonic_distance(trigger, echo):
+def measure_ultrasonic_distance(trigger, echo, retry=10e5):
     """ Measures the distance in cm for given trigger and echo GPIO pins.
 
         Distance = Speed * Time / 2 (we measure from rvr to obstacle back to rvr)
@@ -48,25 +55,46 @@ def measure_ultrasonic_distance(trigger, echo):
 
     start_time = time.time()
     stop_time = time.time()
-
+    
+    fail_count = 0
     while GPIO.input(echo) == 0:
         start_time = time.time()
+        fail_count += 1
 
+        if fail_count >= retry:
+            raise Exception("Failed to measure distance.")
+    
+    fail_count = 0
     while GPIO.input(echo) == 1:
         stop_time = time.time()
+        fail_count += 1
+
+        if fail_count >= retry:
+            raise Exception("Failed to measure distance.")
 
     time_elapsed = stop_time - start_time
-
     distance = time_elapsed * 17150
+    
+    if distance > HCSR04_MAX_RANGE:
+        raise Exception("Measured distance is too large indicating a problem with the material (carpet, fabric etc.).")
+
+    if distance < HCSR04_MIN_RANGE:
+        raise Exception("Measured distance is too large indicating a problem with the material (carpet, fabric etc.).")
+
     return distance
 
 
 def main():
     while True:
         start_time = time.time()
-        front_d = measure_ultrasonic_distance(front_trigger_pin, front_echo_pin)
-        right_d = measure_ultrasonic_distance(right_trigger_pin, right_echo_pin)
-        left_d = measure_ultrasonic_distance(left_trigger_pin, left_echo_pin)
+
+        try:
+            front_d = measure_ultrasonic_distance(front_trigger_pin, front_echo_pin)
+            right_d = measure_ultrasonic_distance(right_trigger_pin, right_echo_pin)
+            left_d = measure_ultrasonic_distance(left_trigger_pin, left_echo_pin)
+        except Exception as e:
+            print(e)
+
         stop_time = time.time()
 
         time_elapsed = stop_time - start_time
