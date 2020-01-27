@@ -62,6 +62,12 @@ LEFT_ECHO = 22
 
 SOUND = 12
 
+# Driving speeds
+STOP = 0
+DRIVE_SLOW = 50
+DRIVE_NORMAL = 60
+DRIVE_FAST = 70
+
 
 #
 # Init sphero rvr async sdk
@@ -73,7 +79,28 @@ rvr = SpheroRvrAsync(
     )
 )
 
-location = {"x": 0.0, "y": 0.0}
+# Init ultrasonic sensors
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(FRONT_TRIGGER, GPIO.OUT)
+GPIO.setup(FRONT_ECHO, GPIO.IN)
+
+GPIO.setup(RIGHT_TRIGGER, GPIO.OUT)
+GPIO.setup(RIGHT_ECHO, GPIO.IN)
+
+GPIO.setup(LEFT_TRIGGER, GPIO.OUT)
+GPIO.setup(LEFT_ECHO, GPIO.IN)
+
+# Init sound
+GPIO.setup(SOUND, GPIO.OUT)
+GPIO.output(SOUND, 0)
+tone = GPIO.PWM(SOUND, 100)
+tone.start(0)
+
+# Set State of rvr
+class RvrState: pass
+state = RvrState() 
+state.speed = 0
+state.num_oks = 0
 
 
 #
@@ -138,10 +165,10 @@ async def led_yellow():
         led_brightness_values=[color for x in range(10) for color in [255, 255, 0]]
     )
 
-async def led_orange():
+async def led_blue():
     await rvr.set_all_leds(
         led_group=RvrLedGroups.all_lights.value,
-        led_brightness_values=[color for x in range(10) for color in [255, 127, 0]]
+        led_brightness_values=[color for x in range(10) for color in [0, 0, 255]]
     )
 
 
@@ -155,44 +182,123 @@ def play_tune(tone, duration, freq):
     time.sleep(0.05)
 
 
-async def stop_robot():
-    await rvr.raw_motors(0,0,0,0)
-    await led_red()
-    await asyncio.sleep(1)
-    return True, 0
+async def talk_to_user():
+    global state
+    # Hello
+    play_tune(tone, 100, 14000)
+    play_tune(tone, 100, 14000)
+    play_tune(tone, 100, 8000)
+    play_tune(tone, 100, 14000)
 
-#
-# M A I N
-#
-async def main(speed=50):
+    old_speed = -1
+    while True:
+        await asyncio.sleep(0.5)
+        if old_speed == state.speed:
+            continue
+
+        if state.speed == DRIVE_SLOW:
+            play_tune(tone, 100, 8000)
+            play_tune(tone, 100, 14000)
+        elif state.speed == DRIVE_NORMAL:
+            play_tune(tone, 100, 8000)
+            play_tune(tone, 200, 14000)
+        elif state.speed == DRIVE_FAST:
+            play_tune(tone, 100, 8000)
+            play_tune(tone, 300, 14000)
+        elif state.speed == STOP:
+            play_tune(tone, 100, 14000)
+            play_tune(tone, 100, 8000)
+        
+        old_speed = state.speed
+
+
+async def handle_leds():
+    global state
+    old_speed = -1
+
+    while True:
+        await asyncio.sleep(0.5)
+        
+        if old_speed == state.speed:
+            continue
+
+        if state.speed == STOP:
+            await led_red()
+        elif state.speed == DRIVE_FAST:
+            await led_blue()
+        elif state.speed == DRIVE_NORMAL:
+            await led_green()
+        elif state.speed == DRIVE_SLOW:
+            await led_yellow()
+        
+        old_speed = state.speed
+
+
+async def security_loop():
+    global state
+
+    num_oks = 0
+    min_oks = 25
+    while True:
+        await asyncio.sleep(0.01)
+
+        # Measure front
+        try:
+            front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
+        except Exception as e:
+            print(e)
+            state.speed = STOP
+            num_oks = 0
+            continue
+        
+        # Measure bottom left and right and handle fabric material
+        try:
+            right_d = measure_ultrasonic_distance(RIGHT_TRIGGER, RIGHT_ECHO)
+            left_d = measure_ultrasonic_distance(LEFT_TRIGGER, LEFT_ECHO)
+        except UltrasonicDistanceTooLarge as e:
+            print("Ultrasonic measures of one sensor is too large. Assume fabric material but drive slow...")
+            left_d, right_d = (-1, -1)
+        except Exception as e:
+            print(e)
+            state.speed = STOP
+            num_oks = 0
+            continue
+
+        # Adapt speed to front sensor
+        if(front_d < 20):
+            print("Avoiding front crash | F: %.2f cm" % front_d)
+            state.speed = STOP 
+            num_oks = 0
+            continue
+
+        # Adapt to cliffs
+        if(right_d > 15 or left_d > 15):
+            print("Avoiding drop | R: %.2f cm | L: %.2f cm" % (right_d, left_d))
+            state.speed = STOP
+            num_oks = 0
+            continue
+        
+        # We need multiple oks before we start again
+        num_oks += 1
+        if num_oks < min_oks:
+            continue
+
+        # Everything is fine so determine speed
+        if(num_oks > 50):
+            state.speed = DRIVE_FAST
+        elif(num_oks > 100):
+            state.speed = DRIVE_NORMAL
+        else:
+            state.speed = DRIVE_SLOW
+
+
+async def drive():
     """ This program has RVR drive around in different directions using the function drive_with_heading.
 
     speed: Drive distance with given speed
     distance: Distance to drive [m]
     """
-
-    # Init ultrasonic sensors
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(FRONT_TRIGGER, GPIO.OUT)
-    GPIO.setup(FRONT_ECHO, GPIO.IN)
-
-    GPIO.setup(RIGHT_TRIGGER, GPIO.OUT)
-    GPIO.setup(RIGHT_ECHO, GPIO.IN)
-
-    GPIO.setup(LEFT_TRIGGER, GPIO.OUT)
-    GPIO.setup(LEFT_ECHO, GPIO.IN)
-
-    # Init sound
-    GPIO.setup(SOUND, GPIO.OUT)
-    GPIO.output(SOUND, 0)
-    tone = GPIO.PWM(SOUND, 100)
-    tone.start(0)
-
-    # Play hellp
-    play_tune(tone, 100, 14000)
-    play_tune(tone, 100, 14000)
-    play_tune(tone, 100, 8000)
-    play_tune(tone, 100, 14000)
+    global state
 
     # Init RVR
     await rvr.wake()
@@ -209,93 +315,32 @@ async def main(speed=50):
     ########################################
     # Driving loop
     ########################################
-    num_oks = 0
     while(True):
-
-        found_problem = False
-
-        # Measure ultrasonic sensors
-        try:
-            front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
-        except Exception as e:
-            print(e)
-            found_problem, num_oks = await stop_robot()            
-            continue
-        
-        right_ds = []
-        left_ds = []
-
-        for _ in range(3):
-            try:
-                await asyncio.sleep(0.005)
-                right_ds = measure_ultrasonic_distance(RIGHT_TRIGGER, RIGHT_ECHO)
-                await asyncio.sleep(0.005)
-                left_ds = measure_ultrasonic_distance(LEFT_TRIGGER, LEFT_ECHO)
-            except UltrasonicDistanceTooLarge as e:
-                print("Ultrasonic measures too large, assuming fabric material")
-                right_ds = [-1]
-                left_ds = [-1]
-                break
-            except Exception as e:
-                print(e)
-                found_problem, num_oks = await stop_robot()            
-                break
-        
-        if found_problem:
+        await asyncio.sleep(0.01)
+        if state.speed <= 0:
+            await rvr.raw_motors(0,0,0,0)
             continue
 
-        # Remove one outlier
-        right_d = np.median(right_ds)
-        left_d = np.median(left_ds)
-
-        # Avoid obstacles and cliffs
-        if(front_d < 30):
-            print("Avoiding front crash with %.2f cm" % front_d)
-            found_problem, num_oks = await stop_robot()    
-            continue
-
-        if(right_d > 15):
-            print("Avoiding right drop with %.2f cm" % right_d)
-            found_problem, num_oks = await stop_robot()    
-            continue
-
-        if(left_d > 15):
-            print("Avoiding left drop with %.2f cm" % left_d)
-            found_problem, num_oks = await stop_robot()    
-            continue
-        
-        # Only if multiple measures where ok we start again
-        num_oks += 1
-        if num_oks < 3:
-            await led_orange()
-            await asyncio.sleep(1)
-            continue  
-        elif num_oks == 3:
-            play_tune(tone, 100, 8000)
-            play_tune(tone, 100, 8000)
-            play_tune(tone, 100, 14000)
-            await led_green()
-            await asyncio.sleep(1)
-            await rvr.reset_yaw()
-            await asyncio.sleep(1)
-
-        # Everything is fine, so letr drive straight ahead
         await rvr.drive_with_heading(
-            speed=speed,
-            heading=0,
-            flags=DriveFlagsBitmask.none.value
-        )
+                speed=state.speed,
+                heading=0,
+                flags=DriveFlagsBitmask.none.value
+            )
     ########################################
-    
-    # Stop
-    await rvr.close()
-    await asyncio.sleep(1)
 
 
+#
+# M A I N
+#
 if __name__ == '__main__':
     try:
         loop.run_until_complete(
-            main()
+            asyncio.gather(
+                security_loop(),
+                drive(),
+                talk_to_user(),
+                handle_leds()
+            )
         )
 
     except KeyboardInterrupt:
