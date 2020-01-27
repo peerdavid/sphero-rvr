@@ -64,9 +64,9 @@ SOUND = 12
 
 # Driving speeds
 STOP = 0
-DRIVE_SLOW = 50
-DRIVE_NORMAL = 60
-DRIVE_FAST = 70
+DRIVE_SLOW = 35
+DRIVE_NORMAL = 50
+DRIVE_FAST = 65
 
 
 #
@@ -172,42 +172,43 @@ async def led_blue():
     )
 
 
-def play_tune(tone, duration, freq):
+async def play_tune(tone, duration, freq):
     """ ToDo This must be done async...
     """
     tone.ChangeDutyCycle(50)
     tone.ChangeFrequency(freq)
-    time.sleep(float(duration) / 1000)
+    await asyncio.sleep(float(duration) / 1000)
     tone.ChangeDutyCycle(0)
-    time.sleep(0.05)
+    await asyncio.sleep(0.05)
 
 
 async def talk_to_user():
     global state
     # Hello
-    play_tune(tone, 100, 14000)
-    play_tune(tone, 100, 14000)
-    play_tune(tone, 100, 8000)
-    play_tune(tone, 100, 14000)
+    await play_tune(tone, 100, 14000)
+    await play_tune(tone, 100, 14000)
+    await play_tune(tone, 100, 8000)
+    await play_tune(tone, 100, 14000)
 
-    old_speed = -1
+    old_speed = state.speed
     while True:
         await asyncio.sleep(0.5)
         if old_speed == state.speed:
             continue
 
         if state.speed == DRIVE_SLOW:
-            play_tune(tone, 100, 8000)
-            play_tune(tone, 100, 14000)
+            await play_tune(tone, 100, 8000)
+            await play_tune(tone, 100, 14000)
         elif state.speed == DRIVE_NORMAL:
-            play_tune(tone, 100, 8000)
-            play_tune(tone, 200, 14000)
+            await play_tune(tone, 100, 8000)
+            await play_tune(tone, 400, 14000)
         elif state.speed == DRIVE_FAST:
-            play_tune(tone, 100, 8000)
-            play_tune(tone, 300, 14000)
+            await play_tune(tone, 100, 8000)
+            await play_tune(tone, 800, 14000)
         elif state.speed == STOP:
-            play_tune(tone, 100, 14000)
-            play_tune(tone, 100, 8000)
+            await play_tune(tone, 100, 14000)
+            await play_tune(tone, 100, 8000)
+            await play_tune(tone, 400, 4000)
         
         old_speed = state.speed
 
@@ -237,16 +238,17 @@ async def handle_leds():
 async def security_loop():
     global state
 
-    num_oks = 0
-    min_oks = 25
+    num_oks = -50 # Init time
+    ok_steps = 70
     while True:
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.005)
 
         # Measure front
         try:
             front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
         except Exception as e:
             print(e)
+            await rvr.raw_motors(0,0,0,0)
             state.speed = STOP
             num_oks = 0
             continue
@@ -260,6 +262,7 @@ async def security_loop():
             left_d, right_d = (-1, -1)
         except Exception as e:
             print(e)
+            await rvr.raw_motors(0,0,0,0)
             state.speed = STOP
             num_oks = 0
             continue
@@ -267,28 +270,34 @@ async def security_loop():
         # Adapt speed to front sensor
         if(front_d < 20):
             print("Avoiding front crash | F: %.2f cm" % front_d)
+            await rvr.raw_motors(0,0,0,0)
             state.speed = STOP 
             num_oks = 0
             continue
 
+        # Decrease speed if we detect a obstacle
+        if(front_d < 80):
+            state.speed -= 1 if state.speed > DRIVE_SLOW else 0
+
         # Adapt to cliffs
         if(right_d > 15 or left_d > 15):
             print("Avoiding drop | R: %.2f cm | L: %.2f cm" % (right_d, left_d))
+            await rvr.raw_motors(0,0,0,0)
             state.speed = STOP
             num_oks = 0
             continue
         
         # We need multiple oks before we start again
         num_oks += 1
-        if num_oks < min_oks:
+        if num_oks < ok_steps:
             continue
 
         # Everything is fine so determine speed
-        if(num_oks > 50):
+        if(num_oks == 3 * ok_steps):
             state.speed = DRIVE_FAST
-        elif(num_oks > 100):
+        elif(num_oks == 2 * ok_steps):
             state.speed = DRIVE_NORMAL
-        else:
+        elif(num_oks == ok_steps):
             state.speed = DRIVE_SLOW
 
 
@@ -318,7 +327,6 @@ async def drive():
     while(True):
         await asyncio.sleep(0.01)
         if state.speed <= 0:
-            await rvr.raw_motors(0,0,0,0)
             continue
 
         await rvr.drive_with_heading(
