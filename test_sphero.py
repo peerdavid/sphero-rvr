@@ -76,12 +76,11 @@ async def main(speed=255, distance=1.0):
     """
     await rvr.wake()
     await asyncio.sleep(2)
-
+    battery = (await rvr.get_battery_percentage())["percentage"]
     print("------------------------------")
     print("RVR data")
     print("------------------------------")
-    print("Battery [%%]: %d" % (await rvr.get_battery_percentage())["percentage"])
-    print("MAC-Address: %s" % (await rvr.get_mac_address())["macAddress"])
+    print("Battery [%%]: %d" % battery)
     print("------------------------------")
     await asyncio.sleep(2)
 

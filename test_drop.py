@@ -1,14 +1,19 @@
 
 
-#
+#####################
 # Combine ultrasonic and rvr drive but avoid collisions and drops.
 #
+#  References:
+#  [1] Asyncio - https://docs.python.org/3/library/asyncio-task.html
+#####################
 
 import numpy as np
 import math
 import time
 
 import asyncio
+import concurrent.futures
+
 from sphero_sdk import SpheroRvrAsync
 from sphero_sdk import SerialAsyncDal
 from sphero_sdk import DriveFlagsBitmask
@@ -104,6 +109,31 @@ state.num_oks = 0
 
 
 #
+# MACHINE LEARNING
+#
+def model():
+    x = 0
+    print("#### START INFERENCE")
+    for _ in range(10000):
+        x = 2 * 3 + x
+    return x
+
+
+async def tf_inference():
+    """ Inference ONCE in a seperate process to not block anything else.
+    Note that this computation will be finsihed also if the main process is killed.
+    """
+    
+
+
+async def cyclic_ml_check():
+    while True:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            x = await loop.run_in_executor(executor, model)
+        print("#### STOP INFERENCE %d" % x)
+        asyncio.sleep(2)
+
+#
 # FUNCTIONS
 #
 def measure_ultrasonic_distance(trigger, echo, retry=10e5):
@@ -182,40 +212,24 @@ async def play_tune(tone, duration, freq):
     await asyncio.sleep(0.05)
 
 
-async def talk_to_user():
-    global state
-    # Hello
+async def say_hello():
     await play_tune(tone, 100, 14000)
     await play_tune(tone, 100, 14000)
     await play_tune(tone, 100, 8000)
     await play_tune(tone, 100, 14000)
 
-    old_speed = state.speed
-    while True:
-        await asyncio.sleep(0.5)
-        if old_speed == state.speed:
-            continue
 
-        if state.speed == DRIVE_SLOW:
-            await play_tune(tone, 100, 8000)
-            await play_tune(tone, 100, 14000)
-        elif state.speed == DRIVE_NORMAL:
-            await play_tune(tone, 100, 8000)
-            await play_tune(tone, 400, 14000)
-        elif state.speed == DRIVE_FAST:
-            await play_tune(tone, 100, 8000)
-            await play_tune(tone, 800, 14000)
-        elif state.speed == STOP:
-            await play_tune(tone, 100, 14000)
-            await play_tune(tone, 100, 8000)
-            await play_tune(tone, 400, 4000)
-        
-        old_speed = state.speed
+async def say_bye():
+    await play_tune(tone, 100, 8000)
+    await play_tune(tone, 100, 8000)
+    await play_tune(tone, 100, 8000)
+    await play_tune(tone, 100, 14000)
+    await play_tune(tone, 100, 8000)
 
 
-async def handle_leds():
+async def user_communication():
     global state
-    old_speed = -1
+    old_speed = state.speed
 
     while True:
         await asyncio.sleep(0.5)
@@ -225,53 +239,63 @@ async def handle_leds():
 
         if state.speed == STOP:
             await led_red()
+            await play_tune(tone, 100, 14000)
+            await play_tune(tone, 100, 8000)
+            await play_tune(tone, 400, 4000)
+
         elif state.speed == DRIVE_FAST:
             await led_blue()
+            await play_tune(tone, 1000, 14000)
+
         elif state.speed == DRIVE_NORMAL:
             await led_green()
+
         elif state.speed == DRIVE_SLOW:
             await led_yellow()
         
         old_speed = state.speed
 
 
+async def stop_robot():
+    state.speed = STOP
+    await rvr.raw_motors(0,0,0,0)
+
+
 async def security_loop():
     global state
 
-    num_oks = -50 # Init time
+    num_oks = -50   # Init time
     ok_steps = 70
     while True:
-        await asyncio.sleep(0.005)
-
         # Measure front
         try:
+            await asyncio.sleep(0.005)
             front_d = measure_ultrasonic_distance(FRONT_TRIGGER, FRONT_ECHO)
         except Exception as e:
             print(e)
-            await rvr.raw_motors(0,0,0,0)
-            state.speed = STOP
+            await stop_robot()
             num_oks = 0
             continue
         
         # Measure bottom left and right and handle fabric material
         try:
+            await asyncio.sleep(0.005)
             right_d = measure_ultrasonic_distance(RIGHT_TRIGGER, RIGHT_ECHO)
+            await asyncio.sleep(0.005)
             left_d = measure_ultrasonic_distance(LEFT_TRIGGER, LEFT_ECHO)
         except UltrasonicDistanceTooLarge as e:
             print("Ultrasonic measures of one sensor is too large. Assume fabric material but drive slow...")
             left_d, right_d = (-1, -1)
         except Exception as e:
             print(e)
-            await rvr.raw_motors(0,0,0,0)
-            state.speed = STOP
+            await stop_robot()
             num_oks = 0
             continue
 
         # Adapt speed to front sensor
         if(front_d < 20):
             print("Avoiding front crash | F: %.2f cm" % front_d)
-            await rvr.raw_motors(0,0,0,0)
-            state.speed = STOP 
+            await stop_robot() 
             num_oks = 0
             continue
 
@@ -282,8 +306,7 @@ async def security_loop():
         # Adapt to cliffs
         if(right_d > 15 or left_d > 15):
             print("Avoiding drop | R: %.2f cm | L: %.2f cm" % (right_d, left_d))
-            await rvr.raw_motors(0,0,0,0)
-            state.speed = STOP
+            await stop_robot()
             num_oks = 0
             continue
         
@@ -321,6 +344,7 @@ async def drive():
     # Start driving
     await rvr.reset_yaw()
     await asyncio.sleep(1)
+
     ########################################
     # Driving loop
     ########################################
@@ -329,12 +353,18 @@ async def drive():
         if state.speed <= 0:
             continue
 
-        await rvr.drive_with_heading(
-                speed=state.speed,
-                heading=0,
-                flags=DriveFlagsBitmask.none.value
-            )
+        # await rvr.drive_with_heading(
+        #         speed=state.speed,
+        #         heading=0,
+        #         flags=DriveFlagsBitmask.none.value
+        #     )
     ########################################
+
+
+async def tear_down():
+    await stop_robot(),
+    await rvr.sensor_control.clear(),
+    await rvr.close()
 
 
 #
@@ -342,24 +372,29 @@ async def drive():
 #
 if __name__ == '__main__':
     try:
+        
+
         loop.run_until_complete(
             asyncio.gather(
+                cyclic_ml_check(),
+                say_hello(),
                 security_loop(),
                 drive(),
-                talk_to_user(),
-                handle_leds()
+                user_communication()
             )
         )
 
-    except KeyboardInterrupt:
-        print('\nProgram terminated with keyboard interrupt.')
+    except Exception as e:
+        print(e)
+        print('\nProgram terminated.')
         loop.run_until_complete(
             asyncio.gather(
-                rvr.sensor_control.clear(),
-                rvr.close()
+                tear_down(),
+                say_bye()
             )
         )
 
     finally:
         if loop.is_running():
             loop.close()
+            

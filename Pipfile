@@ -9,8 +9,11 @@ pylint = "*"
 [packages]
 numpy = "*"
 sphero-sdk = {path = "./../sphero-sdk-raspberrypi-python"}
-rpi-gpio = "*"
 picamera = "*"
+keras-applications = "==1.0.8"
+keras-preprocessing = "==1.1.0"
+h5py = "==2.9.0"
+tflite-runtime = {file = "https://dl.google.com/coral/python/tflite_runtime-2.1.0-cp37-cp37m-linux_armv7l.whl"}
 
 [requires]
 python_version = "3.7"

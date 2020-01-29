@@ -1,23 +1,29 @@
 # Sphero RVR
-This projects extends your Sphero RVR with different functionality:
+This projects extends your Sphero RVR with different hardware modules:
+[x] Sound module (like R2D2)
+[x] Ultrasonic modules
+[x] Camera
 
-[] Security layer to avoid crashes etc.
-[] Sound module (like R2D2)
-[] Object detection
+And includes different software addons:
+[x] Security layer that is ALWAYS active to avoid crashes and cliffs
+[] Object detection using asyncio with TFLite 2.1
+[] Follow me
+[] (Random?) Autonomous driving
+[] Create maps of rooms
+[] Drive to a room after a map is created and take pictures
+[] Security robot -> check if there is any anomaly in any of the rooms (unknown faces etc.)
 
+Note: This project is WIP and thereofe we can not avoid bugs etc. Also the 
+security layer can avoid crashes only with some probability, because its not 
+a hard realtime system.
 
 # Setup
 ## Software
-Execute the following to install all dependencies and create a virtual environment:
+Clone this repository and execute ./install.sh
+Note that we assume here that the cloned folder name is sphero-rvr.
+Note also that in the directory above the sphero python sdk is installed.
 
-1. git clone https://github.com/sphero-inc/sphero-sdk-raspberrypi-python
-2. git clone https://github.com/peerdavid/sphero-rvr
-3. ./sphero-sdk-raspberrypi-python/first-time-setup.sh
-5. cd sphero-rvr
-6. pipenv --python /usr/bin/python3.7
-7. pipenv shell
-
-Note: To install packages run pipenv install PACKAGE
+To add new packages run pipenv install PACKAGE
 
 ## Hardware
 For the hardware we need to connect the raspberry pi 4b to the sphero rvr, install the raspberry camera, install ultrasonic sensors (security layer) and speakers:
