@@ -1,5 +1,3 @@
-
-
 #####################
 # Combine ultrasonic and rvr drive but avoid collisions and drops.
 #

@@ -9,6 +9,10 @@ wget https://github.com/PINTO0309/Tensorflow-bin/raw/master/tensorflow-2.1.0-cp3
 sudo pip3 uninstall tensorflow
 sudo -H pip3 install tensorflow-2.1.0-cp37-cp37m-linux_armv7l.whl
 
+# Install opencv requirements
+sudo apt install -y python3-opencv
+
+
 # Setup sphero python sdk
 cd ..
 git clone https://github.com/sphero-inc/sphero-sdk-raspberrypi-python
