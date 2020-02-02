@@ -32,7 +32,7 @@ To add new packages run pipenv install PACKAGE
 
 
 ## Hardware
-For the hardware we need to connect the raspberry pi 4b to the sphero rvr, install the raspberry camera, install 3x ultrasonic sensors and the buzzer:
+For the hardware we need to connect the raspberry pi 4b to the sphero rvr, install the raspberry camera, install 3x ultrasonic sensors and the buzzer. To test whether your hardware works corretly, you can use the test scripts of test/*.py
 
 ## Ultrasonic
 The RPI gpio's work with 3.3V, the ultrasonic sensors with 5V. Therefore the echo of the ultrasonic is downscaled to  3.3V via two resistors R1 and R2:
