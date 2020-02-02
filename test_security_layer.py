@@ -353,11 +353,11 @@ async def drive():
         if state.speed <= 0:
             continue
 
-        # await rvr.drive_with_heading(
-        #         speed=state.speed,
-        #         heading=0,
-        #         flags=DriveFlagsBitmask.none.value
-        #     )
+        await rvr.drive_with_heading(
+                speed=state.speed,
+                heading=0,
+                flags=DriveFlagsBitmask.none.value
+            )
     ########################################
 
 
@@ -376,7 +376,7 @@ if __name__ == '__main__':
 
         loop.run_until_complete(
             asyncio.gather(
-                cyclic_ml_check(),
+                #cyclic_ml_check(),
                 say_hello(),
                 security_loop(),
                 drive(),

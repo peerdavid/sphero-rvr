@@ -10,3 +10,4 @@ import tflite_runtime.interpreter as tflite
 
 
 print("If the installation of tflite was successfull, then you can read this line :)")
+
