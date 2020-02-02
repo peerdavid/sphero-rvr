@@ -8,14 +8,14 @@ Includes different software addons:
 - [x] Create sound using buzzer
 - [x] Measure distances using the ultrasonic sensors
 - [x] Security layer that is ALWAYS active to avoid crashes and cliffs
-- [] Object detection using asyncio with TFLite 2.1
+- [ ] Object detection using asyncio with TFLite 2.1
 
 Sample applications included in this repo:
-- [] Follow me
-- [] (Random?) Autonomous driving
-- [] Create maps of rooms
-- [] Drive to a room after a map is created and take pictures
-- [] Security robot -> check if there is any anomaly in any of the rooms (unknown faces etc.)
+- [ ] Follow me
+- [ ] (Random?) Autonomous driving
+- [ ] Create maps of rooms
+- [ ] Drive to a room after a map is created and take pictures
+- [ ] Security robot -> check if there is any anomaly in any of the rooms (unknown faces etc.)
 
 Note: This project is WIP and thereofe we can not avoid bugs etc. Also the 
 security layer can avoid crashes only with some probability, because the underlying

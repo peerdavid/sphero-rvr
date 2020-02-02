@@ -432,14 +432,14 @@ async def drive():
     ########################################
     while(True):
         await asyncio.sleep(0.01)
-        # if state.speed <= 0:
-        #     continue
+        if state.speed <= 0:
+            continue
 
-        # await rvr.drive_with_heading(
-        #         speed=state.speed,
-        #         heading=0,
-        #         flags=DriveFlagsBitmask.none.value
-        #     )
+        await rvr.drive_with_heading(
+                speed=state.speed,
+                heading=0,
+                flags=DriveFlagsBitmask.none.value
+            )
     ########################################
 
 
