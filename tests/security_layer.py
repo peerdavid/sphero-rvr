@@ -1,6 +1,7 @@
 #####################
 # Combine ultrasonic and rvr drive but avoid collisions and drops
-# and say hello to persons if detected...
+# and say hello to persons if detected using tensorflow...
+# A live view is also provided via http
 #  References:
 #  [1] Asyncio - https://docs.python.org/3/library/asyncio-task.html
 #####################
@@ -9,8 +10,9 @@ import numpy as np
 import math
 import time
 import io
-
 import asyncio
+import aiohttp
+from aiohttp import web
 import concurrent.futures
 
 from sphero_sdk import SpheroRvrAsync
@@ -71,9 +73,9 @@ SOUND = 12
 
 # Driving speeds
 STOP = 0
-DRIVE_SLOW = 35
-DRIVE_NORMAL = 50
-DRIVE_FAST = 65
+DRIVE_SLOW = 50
+DRIVE_NORMAL = 60
+DRIVE_FAST = 70
 
 # 
 CAMERA_WIDTH = 640
@@ -114,6 +116,25 @@ state.watch_dog = time.monotonic()
 state.num_oks = 0
 state.persons = 0
 state.speed=0
+
+#
+# Webserver
+#
+routes = web.RouteTableDef()
+http_image = None
+
+
+@routes.get('/')
+@routes.get('/stream')
+async def hello(request):
+    global http_image
+    
+    if http_image != None:
+        text = "OK"
+    else:
+        text = "ERROR"
+    return web.Response(text="Hello, world " + text)
+
 
 
 #
@@ -158,6 +179,7 @@ def detect_objects(interpreter, image, threshold):
 
 def inference():
     global state
+    global http_image
     
     interpreter = Interpreter("models/mobilenet_v1/detect.tflite")
     interpreter.allocate_tensors()
@@ -185,6 +207,7 @@ def inference():
             # Get image from camera
             image = Image.open(stream).convert('RGB').resize(
                     (input_width, input_height), Image.ANTIALIAS) #.rotate(270)
+            http_image = image
             
             #image.save("capture.png")
 
@@ -448,20 +471,27 @@ async def tear_down():
     await rvr.sensor_control.clear(),
     await rvr.close()
 
-
+    
+    
 #
 # M A I N
 #
 if __name__ == '__main__':
     try:
         
-
+        app = web.Application()
+        app.add_routes(routes)
+        runner = aiohttp.web.AppRunner(app)
+        loop.run_until_complete(runner.setup())
+        site = aiohttp.web.TCPSite(runner)    
+        
         loop.run_until_complete(
             asyncio.gather(
                 security_loop(),
                 drive(),
                 computer_vision(),
-                user_communication()
+                user_communication(),
+                site.start()
             )
         )
 

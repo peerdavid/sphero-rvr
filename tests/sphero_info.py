@@ -29,6 +29,7 @@ async def main(speed=255, distance=1.0):
     await rvr.wake()
     await asyncio.sleep(1)
     battery = (await rvr.get_battery_percentage())["percentage"]
+    battery_voltage =  (await rvr.get_battery_voltage_state())
     await asyncio.sleep(1)
 
 
@@ -40,6 +41,7 @@ async def main(speed=255, distance=1.0):
     
     await rvr.close()
     await asyncio.sleep(1)
+
 
 
 if __name__ == '__main__':
