@@ -122,20 +122,78 @@ state.speed=0
 #
 routes = web.RouteTableDef()
 http_image = None
+info = {}
 
+html = """
+<h1>Sphero RVR</h1>
+%s
+<center><img src="stream.mjpg"></center>
+"""
 
 @routes.get('/')
-@routes.get('/stream')
+@routes.get('/index')
 async def hello(request):
     global http_image
+    global info
     
     if http_image != None:
         text = "OK"
     else:
         text = "ERROR"
-    return web.Response(text="Hello, world " + text)
+    return web.Response(text=html % str(info), content_type="text/html")
 
 
+@routes.get('/image')
+async def image(request):
+    fp = io.BytesIO()
+    http_image.save(fp, format="JPEG")
+    content = fp.getvalue()
+    return web.Response(body=content, content_type='image/jpeg')
+
+@routes.get("/stream.mjpg")
+async def stream(request):
+    global http_image
+
+    boundary = "boundarydonotcross"
+    response = web.StreamResponse(status=200, reason='OK', headers={
+        'Content-Type': 'multipart/x-mixed-replace; '
+                        'boundary=--%s' % boundary,
+    })
+    await response.prepare(request)
+    while True:
+        try:
+            # Technically, subprocess blocks, so this is a dumb call 
+            # to put in an async example. But, it's a tiny block and 
+            # still mocks instantaneous for this example.
+            fp = io.BytesIO()
+            if http_image is None:
+                await asyncio.sleep(1)
+                continue
+            
+            http_image.save(fp, format="JPEG")
+            data = fp.getvalue()
+
+            # See also https://github.com/aio-libs/aiohttp/issues/3104
+            await response.write('--{}\r\n'.format(boundary).encode('utf-8'))
+            await response.write(b'Content-Type: image/jpeg\r\n')
+            await response.write('Content-Length: {}\r\n'.format(len(data)).encode('utf-8'))
+
+            await response.write(b"\r\n")
+            # Write data
+            await response.write(data)
+            await response.write(b"\r\n")
+            await response.drain()
+            
+            
+            # This also yields to the scheduler, but your server 
+            # probably won't do something like this. 
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            # So you can observe on disconnects and such.
+            print(repr(e))
+            raise
+    
+    return resp
 
 #
 # MACHINE LEARNING
@@ -189,17 +247,16 @@ def inference():
     camera = PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT))
     camera.start_preview()
     camera.rotation=90
-
+    
     try:
         while(True):
-
             # last_ack_ms = (time.monotonic() - state.watch_dog) * 1000
             # print("last_ack_ms", last_ack_ms)
             # if last_ack_ms > 5000:
             #     print("(Error) Main process died after %.3f." % last_ack_ms)
             #     raise Exception("Main process died.")
 
-            print("Camera")
+            #print("Camera")
             # Capture camera
             camera.capture(stream, format='jpeg')
             stream.seek(0)  # "Rewind" the stream to the beginning so we can read its content
@@ -209,10 +266,9 @@ def inference():
                     (input_width, input_height), Image.ANTIALIAS) #.rotate(270)
             http_image = image
             
-            #image.save("capture.png")
-
             # Inference given tflite model
-            print("Inference")
+
+            #print("Inference")
             results = detect_objects(interpreter, image, 0.6)
             state.persons = len([p for p in results if p["class_id"] == 0])
             
@@ -220,7 +276,7 @@ def inference():
             stream.seek(0)
             stream.truncate()
 
-            time.sleep(2)
+            #time.sleep(2)
     finally:
         camera.stop_preview()
 
@@ -436,13 +492,16 @@ async def drive():
     distance: Distance to drive [m]
     """
     global state
+    global info
 
     # Init RVR
     await rvr.wake()
     await asyncio.sleep(1)
 
+    info["battery"] = (await rvr.get_battery_percentage())["percentage"]
+
     print("------------------------------")
-    print("Battery [%%]: %d" % (await rvr.get_battery_percentage())["percentage"])
+    print("Battery [%%]: %d" % info["battery"])
     await asyncio.sleep(1)
     print("------------------------------")
 
