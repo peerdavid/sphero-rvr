@@ -8,7 +8,7 @@ Includes different software addons:
 - [x] Create sound using buzzer
 - [x] Measure distances using the ultrasonic sensors
 - [x] Security layer that is ALWAYS active to avoid crashes and cliffs
-- [ ] Object detection using asyncio with TFLite 2.1
+- [x] Object detection using asyncio with TFLite 2.1
 
 Sample applications included in this repo:
 - [ ] Follow me
